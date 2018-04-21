@@ -1,0 +1,2 @@
+# DexProtectPlugin
+能自动实现Apk加固的Gradle插件
