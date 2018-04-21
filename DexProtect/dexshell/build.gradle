@@ -1,0 +1,77 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 26
+
+    defaultConfig {
+        applicationId "com.stormagain.dexshell"
+        minSdkVersion 14
+        targetSdkVersion 26
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+}
+
+task clearJar(type: Delete) {
+    delete('build/libs/shell.jar')
+}
+
+task collFileToJar(type: org.gradle.api.tasks.bundling.Jar) {
+    baseName 'shell'
+
+    from {
+        List<File> allFiles = new ArrayList<>()
+        configurations.compile.collect {
+            for (File f : zipTree(it).getFiles()) {
+                if (f.getName().equals("classes.jar")) {
+                    //去掉不需要打包的目录和文件
+                    exclude('com/stormagain/dexshell/BuildConfig.class')
+                    exclude('com/stormagain/dexshell/R.class')
+                    exclude('android/**')
+                    allFiles.addAll(zipTree(f).getAt("asFileTrees").get(0).getDir())
+                }
+            }
+        }
+        allFiles.add(new File('build/intermediates/classes/release'))
+        allFiles // To return the obj inside a lambda
+    }
+}
+collFileToJar.dependsOn(clearJar, build)
+
+task makeShellDex(type: Exec, dependsOn: ['collFileToJar']) {
+    String dexPath = rootProject.rootDir.absolutePath + java.io.File.separator + "dexshell" + java.io.File.separator + "shell.dex"
+    File dexFile = new File(dexPath)
+    doFirst {
+        if (dexFile.exists()) {
+            dexFile.delete()
+        }
+    }
+
+    if (System.getProperty('os.name', '').toLowerCase().contains('windows')) {
+        commandLine 'cmd', '/c', String.format("\"\"%s\" --dex --output=\"%s\" build/libs/shell.jar\"", combine(android.getSdkDirectory(), "build-tools", android.buildToolsVersion, "dx"), dexPath)
+    } else {
+        commandLine combine(android.getSdkDirectory(), "build-tools", android.buildToolsVersion, "dx"), '--dex', "--output=" + dexPath, 'build/libs/shell.jar'
+    }
+    standardOutput = new ByteArrayOutputStream()
+    ext.output = {
+        return standardOutput.toString()
+    }
+}
+
+File combine(java.io.File f, java.lang.String[] parts) {
+    for (String part : parts) {
+        f = new File(f, part)
+    }
+    return f
+}
